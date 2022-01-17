@@ -3,6 +3,7 @@ using GestureRecognizer;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class GameController_AirplaneMinigame2 : MonoBehaviour
 {
@@ -21,6 +22,7 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
     public int spawnBG;
     public int bossLife;
     public GameObject anhXa;
+    public bool isChangeState;
 
     public Transform referenceRoot;
 
@@ -28,6 +30,7 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
     public DrawDetector drawDetector;
 
     public Color32[] colors;
+    public Color32 myColor;
 
     public int stage;
     public bool isLock;
@@ -35,6 +38,13 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
     public bool isWinGame;
     public bool isLoseGame;
     public bool isIntro;
+
+    public ProgressBar_PileDriverMinigame1 progressBar;
+    public int countUFO = 0;
+    public int allUFONumber = 36;
+    public Text txtCountUFO;
+    public Text txtWarning;
+    public bool isWarning;
 
     private void Awake()
     {
@@ -51,6 +61,8 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         isIntro = true;
         isLock = false;
         isWinGame = false;
+        isChangeState = false;
+        isWarning = true;
         stage = 0;
         bossLife = -1;
         count = new int[] { 1, 1, 2, 3, 3, 3, 4, 5, 6, 8, 1 };
@@ -61,9 +73,12 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         }
         spawnBG = 0;
         currBackGround = Instantiate(currBackGround, new Vector3(12.5f, -0.6f, 0), Quaternion.identity);
+        txtCountUFO.text = countUFO.ToString() +"/36";
         MoveBG();
         SetSizeCamera();
         StartCoroutine(Intro());
+        progressBar.current_progress = 0;
+        progressBar.max_progress = 1;
     }
 
     IEnumerator Intro()
@@ -131,17 +146,16 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         for (int i = 0; i < dreamIndex; i++)
         {
             int ran = Random.Range(0, listCheckSame.Count);
-            dream.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().pattern = listCheckSame[ran];
-            listCheckSame.RemoveAt(ran);
-            dream.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = colors[Random.Range(0, colors.Length)];
+            CheckColor(listCheckSame[ran].id);
+            dream.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().pattern = listCheckSame[ran];            
+            dream.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = myColor;
             dream.transform.GetChild(0).GetChild(0).GetChild(i).gameObject.SetActive(true);
+            listCheckSame.RemoveAt(ran);
         }
 
         dream.GetComponent<RectTransform>().localPosition = ConvertWorldPossitionToCanvasPossition(UFOsDream[posIndex].transform.position);
         dream.GetComponent<RectTransform>().transform.DOLocalMove(ConvertWorldPossitionToCanvasPossition(Airplane.transform.position), 20f);
 
-
-        //references = referenceRoot.GetComponentsInChildren<GesturePatternDraw>();
 
         return dream;
     }
@@ -160,8 +174,9 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         {
             int ran = Random.Range(0, listCheckSame.Count);
             boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().pattern = listCheckSame[ran];
+            CheckColor(listCheckSame[ran].id);
             listCheckSame.RemoveAt(ran);
-            boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = colors[Random.Range(0, colors.Length)];
+            boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = myColor;
             boss.transform.GetChild(0).GetChild(0).GetChild(i).gameObject.SetActive(true);
         }
         boss.GetComponent<RectTransform>().localPosition = ConvertWorldPossitionToCanvasPossition(UFOsDream[8].transform.position);
@@ -249,6 +264,7 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         if (stage == 11)
         {
             Airplane.transform.DOMoveX(-9.5f, 2f);
+            yield return new WaitForSeconds(2);
             dreamObj.Add(SpawnBoss());
             bossLife = 5;
         }
@@ -284,7 +300,7 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         {
             LineObject_AirplaneMinigame2 dream = dreamObj[i];
             int j = 0;
-            while (!dreamObj[i].line[j].IsActive())
+            while (dreamObj[i].line[j].transform.localScale != Vector3.one)
             {
                 j++;
             }
@@ -297,7 +313,9 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
 
     IEnumerator DrawSuccessOneDream(LineObject_AirplaneMinigame2 dream)
     {
-        dream.Open();
+        dream.Sleep();        
+        
+        
         dream.gameObject.transform.DOShakeScale(0.1f, 1, 2, 10);
         yield return new WaitForSeconds(0.1f);
         dream.gameObject.transform.DOPlayBackwards();
@@ -305,14 +323,50 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         dream.gameObject.transform.DOPlayForward();
         if (dream.line.Count - 1 == 0)
         {
+            countUFO++;
+            txtCountUFO.text = countUFO.ToString() + "/36";
+            progressBar.current_progress = countUFO;
+            progressBar.Bar.fillAmount = progressBar.current_progress / allUFONumber;
+
             if (stage <= 10)
             {
                 UpdateStage(dream, stage);
             }
         }
-        yield return new WaitForSeconds(0.1f);
+        if (isChangeState)
+        {
+            yield return new WaitForSeconds(0.1f);
+        }
         if (stage == 11 && !dream.line[dream.line.Count - 1].IsActive())
         {
+            if (isWarning)
+            {
+                isWarning = false;
+                txtWarning.gameObject.SetActive(true);
+                var tmpWarning = txtWarning.transform.GetChild(0).GetComponent<Text>();
+                tmpWarning.DOFade(0, 0.5f).SetEase(Ease.Linear).OnComplete(() =>
+                {
+                    tmpWarning.DOFade(1, 0.5f).SetEase(Ease.Linear).OnComplete(() =>
+                    {
+                        tmpWarning.DOFade(0, 0.5f).SetEase(Ease.Linear).OnComplete(() =>
+                        {
+                            tmpWarning.DOFade(1, 0.5f).SetEase(Ease.Linear).OnComplete(() =>
+                            {
+                                tmpWarning.DOFade(0, 0.5f);
+                                txtWarning.DOFade(0, 0.5f).OnComplete(() =>
+                                {
+                                    txtWarning.gameObject.SetActive(false);
+                                });                                
+                            });
+                        });
+                    });
+                });
+            }
+
+            if (!isChangeState)
+            {
+                isChangeState = true;
+            }
             if (bossLife > 0)
             {
                 RefreshDreamBoss(dream);
@@ -337,9 +391,10 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         {
             int ran = Random.Range(0, listCheckSame.Count);
             boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().pattern = listCheckSame[ran];
+            CheckColor(listCheckSame[ran].id);
             listCheckSame.RemoveAt(ran);
-            boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = colors[Random.Range(0, colors.Length)];
-            boss.Sleep();
+            boss.transform.GetChild(0).GetChild(0).GetChild(i).GetComponent<GesturePatternDraw>().color = myColor;
+            boss.Open();
         }
     }
 
@@ -374,7 +429,7 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         Invoke(nameof(ForDelayClearUFO), 2f);
         drawDetector.gameObject.SetActive(false);
         StopAllCoroutines();
-        Airplane.transform.DORotate(new Vector3(0,0, -80), 2f);
+        Airplane.transform.DORotate(new Vector3(0, 0, -80), 2f);
         Airplane.transform.DOMoveY(-9, 5).OnComplete(() => { Destroy(Airplane.gameObject); });
     }
 
@@ -384,7 +439,39 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
         //Destroy(referenceRoot.gameObject);
     }
 
+    void CheckColor(string id)
+    {
+        if (id == "vertical")
+        {
+            myColor = colors[0];
+        }
+        else if (id == "horizontal")
+        {
+            myColor = colors[1];
+        }
+        else if (id == "left")
+        {
+            myColor = colors[2];
+        }
+        else if (id == "right")
+        {
+            myColor = colors[3];
+        }
+        else if (id == "down")
+        {
+            myColor = colors[4];
+        }
+        else if (id == "up")
+        {
+            myColor = colors[5];
+        }
+        else if (id == "Circle")
+        {
+            myColor = colors[6];
+        }
+    }
 
+    
     void Update()
     {
         if (!isIntro)
@@ -422,5 +509,6 @@ public class GameController_AirplaneMinigame2 : MonoBehaviour
             if (spawnBG > 2)
                 spawnBG = 2;
         }
+
     }
 }
